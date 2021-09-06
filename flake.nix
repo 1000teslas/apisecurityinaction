@@ -7,7 +7,7 @@
         pkgs = import nixpkgs { inherit system; };
       in
         {
-          devShell = with pkgs; mkShell { buildInputs = [ bashInteractive jdk maven ]; };
+          devShell = with pkgs; mkShell { buildInputs = [ bashInteractive openjdk_headless maven mkcert ]; };
         }
   );
 }

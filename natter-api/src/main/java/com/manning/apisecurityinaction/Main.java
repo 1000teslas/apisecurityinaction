@@ -6,7 +6,10 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Objects;
 
+import com.google.common.util.concurrent.RateLimiter;
+import com.manning.apisecurityinaction.controller.AuditController;
 import com.manning.apisecurityinaction.controller.SpaceController;
+import com.manning.apisecurityinaction.controller.UserController;
 
 import org.dalesbred.Database;
 import org.dalesbred.result.EmptyResultException;
@@ -21,14 +24,25 @@ import static spark.Spark.*;
 
 public class Main {
     public static void main(String[] args) throws URISyntaxException, IOException {
+        // trust store is optional
+        secure("localhost.p12", "changeit", null, null);
         var dataSource = JdbcConnectionPool.create("jdbc:h2:mem:natter", "natter", "password");
         var database = Database.forDataSource(dataSource);
         createTables(database);
         dataSource = JdbcConnectionPool.create("jdbc:h2:mem:natter", "natter_api_user", "password");
-        database = Database.forDataSource(dataSource);
 
+        database = Database.forDataSource(dataSource);
         var spaceController = new SpaceController(database);
-        post("/spaces", spaceController::createSpace);
+        var userController = new UserController(database);
+
+        var rateLimiter = RateLimiter.create(2.0d);
+
+        before((request, response) -> {
+            if (!rateLimiter.tryAcquire()) {
+                response.header("Retry-After", "2");
+                halt(429);
+            }
+        });
 
         before((request, response) -> {
             if (request.requestMethod().equals("POST") && !"application/json".equals(request.contentType())) {
@@ -44,7 +58,17 @@ public class Main {
             response.header("Cache-Control", "no-store");
             response.header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; sandbox");
             response.header("Server", "");
+            response.header("Strict-Transport-Security", "max-age=31536000");
         });
+
+        before(userController::authenticate);
+
+        var auditController = new AuditController(database);
+        before(auditController::auditRequestStart);
+        afterAfter(auditController::auditRequestEnd);
+
+        post("/spaces", spaceController::createSpace);
+        post("/users", userController::registerUser);
 
         internalServerError(new JSONObject().put("error", "internal server error").toString());
         notFound(new JSONObject().put("error", "not found").toString());
@@ -52,6 +76,8 @@ public class Main {
         exception(IllegalArgumentException.class, Main::badRequest);
         exception(JSONException.class, Main::badRequest);
         exception(EmptyResultException.class, (e, request, response) -> response.status(404));
+
+        get("/logs", auditController::readAuditLog);
     }
 
     private static void createTables(Database database) throws URISyntaxException, IOException {
