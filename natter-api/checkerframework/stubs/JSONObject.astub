@@ -1,0 +1,7 @@
+package org.json;
+
+import org.checkerframework.checker.nullness.qual.Nullable;
+
+public class JSONObject {
+    public JSONObject put(String key, @Nullable Object value) throws JSONException;
+}

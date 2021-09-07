@@ -13,6 +13,8 @@ import org.json.JSONObject;
 import spark.Request;
 import spark.Response;
 
+import static org.checkerframework.checker.nullness.util.NullnessUtil.castNonNull;
+
 public class AuditController {
     private final Database database;
 
@@ -45,8 +47,11 @@ public class AuditController {
     }
 
     private static JSONObject recordToJson(ResultSet row) throws JSONException, SQLException {
-        return new JSONObject().put("id", row.getLong("audit_id")).put("method", row.getString("method"))
-                .put("path", row.getString("path")).put("status", row.getInt("status"))
-                .put("user", row.getString("user_id")).put("time", row.getTimestamp("audit_time").toInstant());
+        return new JSONObject().put("id", row.getLong("audit_id"))
+                .put("method", castNonNull(row.getString("method"), "column method is nonnull by db constraint"))
+                .put("path", castNonNull(row.getString("path"), "column path is nonnull by db constraint"))
+                .put("user", row.getString("user_id")).put("status", row.getInt("status"))
+                .put("time", castNonNull(row.getTimestamp("audit_time"), "column timestamp is nonnull by db constraint")
+                        .toInstant());
     }
 }

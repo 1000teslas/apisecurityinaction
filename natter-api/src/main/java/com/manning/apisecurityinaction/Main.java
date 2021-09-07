@@ -21,6 +21,7 @@ import spark.Request;
 import spark.Response;
 
 import static spark.Spark.*;
+import static org.checkerframework.checker.nullness.util.NullnessUtil.castNonNull;
 
 public class Main {
     public static void main(String[] args) throws URISyntaxException, IOException {
@@ -65,9 +66,13 @@ public class Main {
 
         var auditController = new AuditController(database);
         before(auditController::auditRequestStart);
+        before("/spaces", userController::requireAuthentication);
         afterAfter(auditController::auditRequestEnd);
 
         post("/spaces", spaceController::createSpace);
+        post("/spaces/:spaceId/messages", spaceController::postMessage);
+        get("/spaces/:spaceId/messages/:msgId", spaceController::readMessage);
+        get("/spaces/:spaceId/messages", spaceController::findMessages);
         post("/users", userController::registerUser);
 
         internalServerError(new JSONObject().put("error", "internal server error").toString());
@@ -81,8 +86,8 @@ public class Main {
     }
 
     private static void createTables(Database database) throws URISyntaxException, IOException {
-        @SuppressWarnings("nullable") // resource "/schema.sql" exists
-        var path = Paths.get(Main.class.getResource("/schema.sql").toURI());
+        var path = Paths.get(
+                castNonNull(Main.class.getResource("/schema.sql"), "resource \"/schema.sql\" does not exist").toURI());
         database.update(Files.readString(path));
     }
 

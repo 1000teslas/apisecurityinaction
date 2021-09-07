@@ -11,6 +11,8 @@ import org.json.JSONObject;
 import spark.Request;
 import spark.Response;
 
+import static spark.Spark.halt;
+
 public class UserController {
     private static final String USERNAME_PATTERN = "[a-zA-Z][a-zA-Z0-9]{1,29}";
     private final Database database;
@@ -64,6 +66,13 @@ public class UserController {
 
         if (hash.isPresent() && SCryptUtil.check(password, hash.get())) {
             request.attribute("subject", username);
+        }
+    }
+
+    public void requireAuthentication(Request request, Response response) {
+        if (request.attribute("subject") == null) {
+            response.header("WWW-Authenticate", "Basic realm=\"/\", charset=\"UTF-8\"");
+            halt(401);
         }
     }
 }

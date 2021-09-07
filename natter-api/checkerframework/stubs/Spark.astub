@@ -1,0 +1,10 @@
+package spark;
+
+import org.checkerframework.checker.nullness.qual.Nullable;
+
+public class Spark {
+    public static void secure(String keystoreFile,
+                              String keystorePassword,
+                              @Nullable String truststoreFile,
+                              @Nullable String truststorePassword);
+}
