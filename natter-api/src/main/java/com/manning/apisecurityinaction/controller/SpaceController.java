@@ -2,6 +2,7 @@ package com.manning.apisecurityinaction.controller;
 
 import java.text.MessageFormat;
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.stream.Collectors;
 
 import org.dalesbred.Database;
@@ -34,6 +35,10 @@ public class SpaceController {
 
             database.updateUnique("INSERT INTO spaces(space_id, name, owner) VALUES(?, ?, ?);", spaceId, spaceName,
                     owner);
+
+            database.updateUnique(
+                    "INSERT INTO permissions(space_id, user_id, read, write, delete) VALUES (?, ?, true, true, true);",
+                    spaceId, owner);
 
             response.status(201);
             var location = "/spaces/" + spaceId;
@@ -72,8 +77,8 @@ public class SpaceController {
         var msgId = Long.parseLong(request.params(":msgId"));
 
         var message = database.findUnique(Message.class,
-                "SELECT space_id, msg_id, author, time, message FROM messages WHERE msg_id = ? AND space_id = ?", msgId,
-                spaceId);
+                "SELECT space_id, msg_id, author, msg_time, msg_text FROM messages WHERE msg_id = ? AND space_id = ?",
+                msgId, spaceId);
 
         response.status(200);
         return message;
@@ -115,5 +120,32 @@ public class SpaceController {
             return new JSONObject().put("uri", MessageFormat.format("/spaces/{0}/messages/{1}", spaceId, msgId))
                     .put("author", author).put("time", time.toString()).put("message", message).toString();
         }
+    }
+
+    public JSONObject addMember(Request request, Response response) throws InsufficientPermissionsException {
+        var json = new JSONObject(request.body());
+        var spaceId = Long.parseLong(request.params(":spaceId"));
+        var userToAdd = json.getString("username");
+        var read = json.getBoolean("read");
+        var write = json.getBoolean("write");
+        var delete = json.getBoolean("delete");
+        var permsWanted = Permission.permsFrom(read, write, delete);
+
+        var username = castNonNull(request.attribute("subject"), "nonnull since authenticated");
+        var permsHad = database.findOptional(Permission::permsFromRow,
+                "SELECT read, write, delete FROM permissions WHERE space_id = ? AND user_id = ?;", spaceId, username)
+                .orElse(EnumSet.noneOf(Permission.class));
+        if (!permsHad.containsAll(permsWanted)) {
+            throw new InsufficientPermissionsException();
+        }
+
+        database.updateUnique("INSERT INTO permissions(space_id, user_id, read, write, delete) VALUES (?, ?, ?, ?, ?);",
+                spaceId, userToAdd, read, write, delete);
+
+        response.status(200);
+        return new JSONObject().put("username", userToAdd).put("read", read).put("write", write).put("delete", delete);
+    }
+
+    public class InsufficientPermissionsException extends Exception {
     }
 }

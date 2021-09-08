@@ -2,16 +2,19 @@ package com.manning.apisecurityinaction.controller;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.EnumSet;
 
 import com.lambdaworks.crypto.SCryptUtil;
 
 import org.dalesbred.Database;
 import org.json.JSONObject;
 
+import spark.Filter;
 import spark.Request;
 import spark.Response;
 
 import static spark.Spark.halt;
+import static org.checkerframework.checker.nullness.util.NullnessUtil.castNonNull;
 
 public class UserController {
     private static final String USERNAME_PATTERN = "[a-zA-Z][a-zA-Z0-9]{1,29}";
@@ -74,5 +77,25 @@ public class UserController {
             response.header("WWW-Authenticate", "Basic realm=\"/\", charset=\"UTF-8\"");
             halt(401);
         }
+    }
+
+    public Filter requirePermission(String method, EnumSet<Permission> permsNeeded) {
+        return (request, response) -> {
+            if (!method.equalsIgnoreCase(request.requestMethod())) {
+                return;
+            }
+
+            requireAuthentication(request, response);
+
+            var spaceId = Long.parseLong(request.params(":spaceId"));
+            var username = castNonNull(request.attribute("subject"), "nonnull since authenticated");
+
+            var permsHad = database.findOptional(Permission::permsFromRow,
+                    "SELECT read, write, delete FROM permissions WHERE space_id = ? AND user_id = ?;", spaceId,
+                    username).orElse(EnumSet.noneOf(Permission.class));
+            if (!permsHad.containsAll(permsNeeded)) {
+                halt(403);
+            }
+        };
     }
 }

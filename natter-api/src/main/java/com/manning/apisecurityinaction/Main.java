@@ -4,10 +4,13 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.EnumSet;
 import java.util.Objects;
 
 import com.google.common.util.concurrent.RateLimiter;
 import com.manning.apisecurityinaction.controller.AuditController;
+import com.manning.apisecurityinaction.controller.ModeratorController;
+import com.manning.apisecurityinaction.controller.Permission;
 import com.manning.apisecurityinaction.controller.SpaceController;
 import com.manning.apisecurityinaction.controller.UserController;
 
@@ -27,6 +30,7 @@ public class Main {
     public static void main(String[] args) throws URISyntaxException, IOException {
         // trust store is optional
         secure("localhost.p12", "changeit", null, null);
+
         var dataSource = JdbcConnectionPool.create("jdbc:h2:mem:natter", "natter", "password");
         var database = Database.forDataSource(dataSource);
         createTables(database);
@@ -35,6 +39,8 @@ public class Main {
         database = Database.forDataSource(dataSource);
         var spaceController = new SpaceController(database);
         var userController = new UserController(database);
+        var auditController = new AuditController(database);
+        var moderatorController = new ModeratorController(database);
 
         var rateLimiter = RateLimiter.create(2.0d);
 
@@ -64,15 +70,29 @@ public class Main {
 
         before(userController::authenticate);
 
-        var auditController = new AuditController(database);
         before(auditController::auditRequestStart);
-        before("/spaces", userController::requireAuthentication);
         afterAfter(auditController::auditRequestEnd);
 
+        before("/spaces", userController::requireAuthentication);
         post("/spaces", spaceController::createSpace);
+
+        before("/spaces/:spaceId/messages", userController.requirePermission("POST", EnumSet.of(Permission.Write)));
         post("/spaces/:spaceId/messages", spaceController::postMessage);
+
+        before("/spaces/:spaceId/messages/*", userController.requirePermission("GET", EnumSet.of(Permission.Read)));
         get("/spaces/:spaceId/messages/:msgId", spaceController::readMessage);
+
+        before("/spaces/:spaceId/messages", userController.requirePermission("GET", EnumSet.of(Permission.Read)));
         get("/spaces/:spaceId/messages", spaceController::findMessages);
+
+        before("/spaces/:spaceId/members", userController::requireAuthentication);
+        post("/spaces/:spaceId/members", spaceController::addMember);
+
+        before("/spaces/:spaceId/messages/*",
+                userController.requirePermission("DELETE", EnumSet.of(Permission.Delete)));
+        delete("/spaces/:spaceId/messages/:msgId", moderatorController::deletePost);
+
+        get("/logs", auditController::readAuditLog);
         post("/users", userController::registerUser);
 
         internalServerError(new JSONObject().put("error", "internal server error").toString());
@@ -81,8 +101,11 @@ public class Main {
         exception(IllegalArgumentException.class, Main::badRequest);
         exception(JSONException.class, Main::badRequest);
         exception(EmptyResultException.class, (e, request, response) -> response.status(404));
-
-        get("/logs", auditController::readAuditLog);
+        exception(SpaceController.InsufficientPermissionsException.class, (e, request, response) -> {
+            response.status(403);
+            response.body(new JSONObject()
+                    .put("error", "attempted to create user with more permissions than current user").toString());
+        });
     }
 
     private static void createTables(Database database) throws URISyntaxException, IOException {
