@@ -12,7 +12,10 @@ import com.manning.apisecurityinaction.controller.AuditController;
 import com.manning.apisecurityinaction.controller.ModeratorController;
 import com.manning.apisecurityinaction.controller.Permission;
 import com.manning.apisecurityinaction.controller.SpaceController;
+import com.manning.apisecurityinaction.controller.TokenController;
 import com.manning.apisecurityinaction.controller.UserController;
+import com.manning.apisecurityinaction.token.CookieTokenStore;
+import com.manning.apisecurityinaction.token.TokenStore;
 
 import org.dalesbred.Database;
 import org.dalesbred.result.EmptyResultException;
@@ -28,6 +31,8 @@ import static org.checkerframework.checker.nullness.util.NullnessUtil.castNonNul
 
 public class Main {
     public static void main(String[] args) throws URISyntaxException, IOException {
+        staticFiles.location("/public");
+
         // trust store is optional
         secure("localhost.p12", "changeit", null, null);
 
@@ -41,6 +46,8 @@ public class Main {
         var userController = new UserController(database);
         var auditController = new AuditController(database);
         var moderatorController = new ModeratorController(database);
+        TokenStore tokenStore = new CookieTokenStore();
+        var tokenController = new TokenController(tokenStore);
 
         var rateLimiter = RateLimiter.create(2.0d);
 
@@ -65,13 +72,18 @@ public class Main {
             response.header("Cache-Control", "no-store");
             response.header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; sandbox");
             response.header("Server", "");
-            response.header("Strict-Transport-Security", "max-age=31536000");
+            // response.header("Strict-Transport-Security", "max-age=31536000");
         });
 
         before(userController::authenticate);
+        before(tokenController::validateToken);
 
         before(auditController::auditRequestStart);
         afterAfter(auditController::auditRequestEnd);
+
+        before("/sessions", userController::requireAuthentication);
+        post("/sessions", tokenController::login);
+        delete("/sessions", tokenController::logout);
 
         before("/spaces", userController::requireAuthentication);
         post("/spaces", spaceController::createSpace);
