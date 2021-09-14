@@ -1,9 +1,15 @@
 package com.manning.apisecurityinaction;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
 import java.util.EnumSet;
 import java.util.Objects;
 
@@ -14,8 +20,8 @@ import com.manning.apisecurityinaction.controller.Permission;
 import com.manning.apisecurityinaction.controller.SpaceController;
 import com.manning.apisecurityinaction.controller.TokenController;
 import com.manning.apisecurityinaction.controller.UserController;
-import com.manning.apisecurityinaction.token.CookieTokenStore;
-import com.manning.apisecurityinaction.token.TokenStore;
+import com.manning.apisecurityinaction.token.DatabaseTokenStore;
+import com.manning.apisecurityinaction.token.HmacTokenStore;
 
 import org.dalesbred.Database;
 import org.dalesbred.result.EmptyResultException;
@@ -30,9 +36,9 @@ import static spark.Spark.*;
 import static org.checkerframework.checker.nullness.util.NullnessUtil.castNonNull;
 
 public class Main {
-    public static void main(String[] args) throws URISyntaxException, IOException {
+    public static void main(String[] args) throws URISyntaxException, IOException, KeyStoreException,
+            NoSuchAlgorithmException, CertificateException, UnrecoverableKeyException {
         staticFiles.location("/public");
-
         // trust store is optional
         secure("localhost.p12", "changeit", null, null);
 
@@ -46,11 +52,17 @@ public class Main {
         var userController = new UserController(database);
         var auditController = new AuditController(database);
         var moderatorController = new ModeratorController(database);
-        TokenStore tokenStore = new CookieTokenStore();
+
+        var keyPassword = System.getProperty("keystore.password", "changeit").toCharArray();
+        var keyStore = KeyStore.getInstance("PKCS12");
+        keyStore.load(new FileInputStream("keystore.p12"), keyPassword);
+        var macKey = castNonNull(keyStore.getKey("hmac-key", keyPassword),
+                "nonnull since alias hmac-key is associated with mac key in keystore");
+        var databaseTokenStore = new DatabaseTokenStore(database);
+        var tokenStore = HmacTokenStore.wrap(databaseTokenStore, macKey);
         var tokenController = new TokenController(tokenStore);
 
         var rateLimiter = RateLimiter.create(2.0d);
-
         before((request, response) -> {
             if (!rateLimiter.tryAcquire()) {
                 response.header("Retry-After", "2");

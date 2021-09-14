@@ -1,31 +1,32 @@
 const apiUrl = 'https://localhost:4567';
-function login(username, password) {
+async function login(username, password) {
     let credentials = 'Basic ' + btoa(username + ':' + password);
-    fetch(apiUrl + '/sessions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': credentials
-        }
-    }).then(res => {
+    try {
+        let res = await fetch(apiUrl + '/sessions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': credentials
+            }
+        });
         if (res.ok) {
-            res.json().then(json => {
-                document.cookie = 'csrfToken=' + json.token +
-                    ';Secure;SameSite=strict';
-                window.location.replace('/natter.html');
-            });
+            let json = await res.json();
+            localStorage.setItem('token', json.token);
+            window.location.replace('/natter.html');
         }
-    }).catch(error => console.error('Error logging in: ', error));
+    }
+    catch (error) { console.error('Error logging in: ', error); }
 }
-window.addEventListener('load', function (e) {
+
+window.addEventListener('load', async function (e) {
     document.getElementById('login')
-        .addEventListener('submit', processLoginSubmit);
+        .addEventListener('submit', await processLoginSubmit());
 });
 
-function processLoginSubmit(e) {
+async function processLoginSubmit(e) {
     e.preventDefault();
     let username = document.getElementById('username').value;
     let password = document.getElementById('password').value;
-    login(username, password);
+    await login(username, password);
     return false;
 }
