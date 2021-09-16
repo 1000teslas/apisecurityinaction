@@ -11,25 +11,25 @@ import javax.crypto.Mac;
 
 import spark.Request;
 
-public class HmacTokenStore implements SecureTokenStore {
-    private final TokenStore delegate;
+public class HmacTokenStore<T> implements SecureTokenStore<T> {
+    private final TokenStore<T> delegate;
     private final Key macKey;
 
-    private HmacTokenStore(TokenStore delegate, Key macKey) {
+    private HmacTokenStore(TokenStore<T> delegate, Key macKey) {
         this.delegate = delegate;
         this.macKey = macKey;
     }
 
-    public static SecureTokenStore wrap(ConfidentialTokenStore store, Key macKey) {
-        return new HmacTokenStore(store, macKey);
+    public static <T> SecureTokenStore<T> wrap(ConfidentialTokenStore<T> store, Key macKey) {
+        return new HmacTokenStore<T>(store, macKey);
     }
 
-    public static AuthenticatedTokenStore wrap(TokenStore store, Key macKey) {
-        return new HmacTokenStore(store, macKey);
+    public static <T> AuthenticatedTokenStore<T> wrap(TokenStore<T> store, Key macKey) {
+        return new HmacTokenStore<T>(store, macKey);
     }
 
     @Override
-    public String create(Request request, Token token) {
+    public String create(Request request, T token) {
         var tokenId = delegate.create(request, token);
         var tag = hmac(tokenId);
         return tokenId + '.' + Base64Url.encode(tag);
@@ -46,7 +46,7 @@ public class HmacTokenStore implements SecureTokenStore {
     }
 
     @Override
-    public Optional<Token> read(Request request, String tokenId) {
+    public Optional<T> read(Request request, String tokenId) {
         var index = tokenId.lastIndexOf('.');
         if (index == -1) {
             return Optional.empty();

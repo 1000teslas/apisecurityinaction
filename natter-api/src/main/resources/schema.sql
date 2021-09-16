@@ -49,9 +49,17 @@ GRANT SELECT, INSERT ON permissions TO natter_api_user;
 
 CREATE TABLE tokens(
     token_id VARCHAR(100) PRIMARY KEY,
-    user_id VARCHAR(30) NOT NULL,      
+    user_id VARCHAR(30) NOT NULL REFERENCES users(user_id),
     expiry TIMESTAMP NOT NULL,
     attributes VARCHAR(4096) NOT NULL     
 );
 GRANT SELECT, INSERT, DELETE ON tokens TO natter_api_user;
 CREATE INDEX expired_token_idx ON tokens(expiry);
+
+CREATE TABLE caps(
+    cap_id VARCHAR(100) PRIMARY KEY,
+    expiry TIMESTAMP NOT NULL,
+    attributes VARCHAR(4096) NOT NULL     
+);
+GRANT SELECT, INSERT, DELETE ON caps TO natter_api_user;
+CREATE INDEX expired_cap_idx ON caps(expiry);

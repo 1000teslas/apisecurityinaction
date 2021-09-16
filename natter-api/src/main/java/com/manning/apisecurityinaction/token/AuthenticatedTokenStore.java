@@ -1,5 +1,5 @@
 package com.manning.apisecurityinaction.token;
 
-public interface AuthenticatedTokenStore extends TokenStore {
+public interface AuthenticatedTokenStore<T> extends TokenStore<T> {
 
 }

@@ -1,7 +1,7 @@
 package com.manning.apisecurityinaction.controller;
 
+import com.manning.apisecurityinaction.token.AuthnToken;
 import com.manning.apisecurityinaction.token.SecureTokenStore;
-import com.manning.apisecurityinaction.token.TokenStore;
 
 import org.json.JSONObject;
 
@@ -14,9 +14,9 @@ import static org.checkerframework.checker.nullness.util.NullnessUtil.castNonNul
 import static spark.Spark.halt;
 
 public class TokenController {
-    private final SecureTokenStore tokenStore;
+    private final SecureTokenStore<AuthnToken> tokenStore;
 
-    public TokenController(SecureTokenStore tokenStore) {
+    public TokenController(SecureTokenStore<AuthnToken> tokenStore) {
         this.tokenStore = tokenStore;
     }
 
@@ -24,7 +24,7 @@ public class TokenController {
         String subject = castNonNull(request.attribute("subject"), "nonnull since authenticated");
         var expiry = Instant.now().plus(10, ChronoUnit.MINUTES);
 
-        var token = new TokenStore.Token(expiry, subject);
+        var token = new AuthnToken(expiry, subject);
         var tokenId = tokenStore.create(request, token);
 
         response.status(201);
@@ -42,15 +42,14 @@ public class TokenController {
                 request.attribute("subject", token.username);
                 token.attributes.forEach(request::attribute);
             } else {
-                response.header("WWW-Authenticate",
-                        "Bearer error=\"invalid_token\"," + "error_description=\"Expired\"");
+                response.header("WWW-Authenticate", "Bearer error=\"invalid_token\",error_description=\"Expired\"");
                 halt(401);
             }
         });
     }
 
     public JSONObject logout(Request request, Response response) {
-        var tokenId = request.headers("X-CSRF-Token");
+        var tokenId = request.headers("Authorization");
         if (tokenId == null || !tokenId.startsWith("Bearer ")) {
             throw new IllegalArgumentException("missing token header");
         }

@@ -15,12 +15,14 @@ import java.util.Objects;
 
 import com.google.common.util.concurrent.RateLimiter;
 import com.manning.apisecurityinaction.controller.AuditController;
+import com.manning.apisecurityinaction.controller.CapabilityController;
 import com.manning.apisecurityinaction.controller.ModeratorController;
 import com.manning.apisecurityinaction.controller.Permission;
 import com.manning.apisecurityinaction.controller.SpaceController;
 import com.manning.apisecurityinaction.controller.TokenController;
 import com.manning.apisecurityinaction.controller.UserController;
-import com.manning.apisecurityinaction.token.DatabaseTokenStore;
+import com.manning.apisecurityinaction.token.AuthnTokenStore;
+import com.manning.apisecurityinaction.token.CapabilityStore;
 import com.manning.apisecurityinaction.token.HmacTokenStore;
 
 import org.dalesbred.Database;
@@ -42,25 +44,28 @@ public class Main {
         // trust store is optional
         secure("localhost.p12", "changeit", null, null);
 
+        var keyPassword = System.getProperty("keystore.password", "changeit").toCharArray();
+        var keyStore = KeyStore.getInstance("PKCS12");
+        keyStore.load(new FileInputStream("keystore.p12"), keyPassword);
+        var macKey = castNonNull(keyStore.getKey("hmac-key", keyPassword),
+                "nonnull since alias hmac-key is associated with mac key in keystore");
+
         var dataSource = JdbcConnectionPool.create("jdbc:h2:mem:natter", "natter", "password");
         var database = Database.forDataSource(dataSource);
         createTables(database);
         dataSource = JdbcConnectionPool.create("jdbc:h2:mem:natter", "natter_api_user", "password");
 
         database = Database.forDataSource(dataSource);
-        var spaceController = new SpaceController(database);
+
+        var capStore = HmacTokenStore.wrap(new CapabilityStore(database), macKey);
+        var capController = new CapabilityController(capStore);
+        var spaceController = new SpaceController(database, capController);
         var userController = new UserController(database);
         var auditController = new AuditController(database);
         var moderatorController = new ModeratorController(database);
 
-        var keyPassword = System.getProperty("keystore.password", "changeit").toCharArray();
-        var keyStore = KeyStore.getInstance("PKCS12");
-        keyStore.load(new FileInputStream("keystore.p12"), keyPassword);
-        var macKey = castNonNull(keyStore.getKey("hmac-key", keyPassword),
-                "nonnull since alias hmac-key is associated with mac key in keystore");
-        var databaseTokenStore = new DatabaseTokenStore(database);
-        var tokenStore = HmacTokenStore.wrap(databaseTokenStore, macKey);
-        var tokenController = new TokenController(tokenStore);
+        var authnTokenStore = HmacTokenStore.wrap(new AuthnTokenStore(database), macKey);
+        var tokenController = new TokenController(authnTokenStore);
 
         var rateLimiter = RateLimiter.create(2.0d);
         before((request, response) -> {

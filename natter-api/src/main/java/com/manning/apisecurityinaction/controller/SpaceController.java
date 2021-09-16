@@ -1,6 +1,7 @@
 package com.manning.apisecurityinaction.controller;
 
 import java.text.MessageFormat;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.stream.Collectors;
@@ -16,9 +17,11 @@ import static org.checkerframework.checker.nullness.util.NullnessUtil.castNonNul
 
 public class SpaceController {
     private final Database database;
+    private final CapabilityController capabilityController;
 
-    public SpaceController(Database database) {
+    public SpaceController(Database database, CapabilityController capabilityController) {
         this.database = database;
+        this.capabilityController = capabilityController;
     }
 
     public JSONObject createSpace(Request request, Response response) {
@@ -28,7 +31,7 @@ public class SpaceController {
             throw new IllegalArgumentException("space name too long");
         }
 
-        String owner = castNonNull(request.attribute("subject"), "nonnull since authenticated");
+        var owner = castNonNull(request.attribute("subject"), "nonnull since authenticated");
 
         return database.withTransaction(tx -> {
             var spaceId = database.findUniqueLong("SELECT NEXT VALUE FOR space_id_seq;");
@@ -40,11 +43,13 @@ public class SpaceController {
                     "INSERT INTO permissions(space_id, user_id, read, write, delete) VALUES (?, ?, true, true, true);",
                     spaceId, owner);
 
-            response.status(201);
-            var location = "/spaces/" + spaceId;
-            response.header("Location", location);
+            var expiry = Duration.ofDays(100000);
+            var uri = capabilityController.createUri(request, "/spaces/" + spaceId, "rwd", expiry);
 
-            return new JSONObject().put("name", spaceName).put("uri", location);
+            response.status(201);
+            response.header("Location", uri.toASCIIString());
+
+            return new JSONObject().put("name", spaceName).put("uri", uri);
         });
     }
 
