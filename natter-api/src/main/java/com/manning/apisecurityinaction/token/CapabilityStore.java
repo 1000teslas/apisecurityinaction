@@ -42,7 +42,8 @@ public final class CapabilityStore implements ConfidentialTokenStore<Capability>
     }
 
     private Capability readToken(ResultSet resultSet) throws SQLException {
-        var expiry = castNonNull(resultSet.getTimestamp("expiry"), "nonnull by db constraint").toInstant();
+        var ts = resultSet.getTimestamp("expiry");
+        var expiry = ts == null ? null : ts.toInstant();
         var json = new JSONObject(castNonNull(resultSet.getString("attributes"), "nonnull by db constraint"));
 
         var token = new Capability(expiry);

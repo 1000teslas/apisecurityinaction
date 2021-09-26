@@ -1,9 +1,8 @@
 package com.manning.apisecurityinaction.controller;
 
-import java.text.MessageFormat;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.EnumSet;
+import java.time.temporal.ChronoUnit;
 import java.util.stream.Collectors;
 
 import org.dalesbred.Database;
@@ -13,6 +12,7 @@ import org.json.JSONObject;
 import spark.Request;
 import spark.Response;
 
+import static java.text.MessageFormat.format;
 import static org.checkerframework.checker.nullness.util.NullnessUtil.castNonNull;
 
 public class SpaceController {
@@ -39,17 +39,19 @@ public class SpaceController {
             database.updateUnique("INSERT INTO spaces(space_id, name, owner) VALUES(?, ?, ?);", spaceId, spaceName,
                     owner);
 
-            database.updateUnique(
-                    "INSERT INTO permissions(space_id, user_id, read, write, delete) VALUES (?, ?, true, true, true);",
-                    spaceId, owner);
-
-            var expiry = Duration.ofDays(100000);
-            var uri = capabilityController.createUri(request, "/spaces/" + spaceId, "rwd", expiry);
+            var uri = capabilityController.createUri(request, "/spaces/" + spaceId, "rwd", null);
+            var messagesUri = capabilityController.createUri(request, format("/spaces/{0}/messages", spaceId), "rwd",
+                    null);
+            var messagesRwUri = capabilityController.createUri(request, format("/spaces/{0}/messages", spaceId), "rw",
+                    null);
+            var messagesRoUri = capabilityController.createUri(request, format("/spaces/{0}/messages", spaceId), "r",
+                    null);
 
             response.status(201);
             response.header("Location", uri.toASCIIString());
 
-            return new JSONObject().put("name", spaceName).put("uri", uri);
+            return new JSONObject().put("name", spaceName).put("uri", uri).put("messages-rwd", messagesUri)
+                    .put("messages-rw", messagesRwUri).put("messages-r", messagesRoUri);
         });
     }
 
@@ -69,11 +71,15 @@ public class SpaceController {
                     "INSERT INTO messages(space_id, msg_id, author, msg_time, msg_text) VALUES(?, ?, ?, current_timestamp, ?);",
                     spaceId, msgId, author, message);
 
-            response.status(201);
-            var location = MessageFormat.format("/spaces/{0}/messages/{1}", spaceId, msgId);
-            response.header("Location", location);
+            var uri = capabilityController.createUri(request, format("/spaces/{0}/messages/{1}", spaceId, msgId), "rwd",
+                    Duration.ofMinutes(5));
+            var roUri = capabilityController.createUri(request, format("/spaces/{0}/messages/{1}", spaceId, msgId), "r",
+                    null);
 
-            return new JSONObject().put("uri", location);
+            response.status(201);
+            response.header("Location", uri.toASCIIString());
+
+            return new JSONObject().put("uri", uri).put("uri-ro", roUri);
         });
     }
 
@@ -91,18 +97,21 @@ public class SpaceController {
 
     public JSONArray findMessages(Request request, Response response) {
         var spaceId = Long.parseLong(request.params(":spaceId"));
-        var since1 = request.queryParams("since");
-        var since = since1 == null ? null : Instant.parse(since1);
+        var since = Instant.now().minus(1, ChronoUnit.DAYS);
+        if (request.queryParams("since") != null) {
+            since = Instant.parse(request.queryParams("since"));
+        }
 
-        var messages = since == null
-                ? database.findAll(Long.class, "SELECT msg_id FROM messages WHERE space_id = ?;", spaceId)
-                : database.findAll(Long.class, "SELECT msg_id FROM messages WHERE space_id = ?, msg_time >= ?;",
-                        spaceId, since);
+        var messages = database.findAll(Long.class, "SELECT msg_id FROM messages WHERE space_id = ? AND msg_time >= ?;",
+                spaceId, since);
+        var perms = castNonNull(request.<String>attribute("perms"), "nonnull since checked by requirePermission")
+                .replace("w", "");
 
         response.status(200);
-        return new JSONArray(
-                messages.stream().map(msgId -> MessageFormat.format("/spaces/{0}/messages/{1}", spaceId, msgId))
-                        .collect(Collectors.toList()));
+        return new JSONArray(messages.stream().map(msgId -> {
+            var path = format("/spaces/{0}/messages/{1}", spaceId, msgId);
+            return capabilityController.createUri(request, path, perms, Duration.ofMinutes(10));
+        }).collect(Collectors.toList()));
     }
 
     public static class Message {
@@ -122,35 +131,8 @@ public class SpaceController {
 
         @Override
         public String toString() {
-            return new JSONObject().put("uri", MessageFormat.format("/spaces/{0}/messages/{1}", spaceId, msgId))
-                    .put("author", author).put("time", time.toString()).put("message", message).toString();
+            return new JSONObject().put("uri", format("/spaces/{0}/messages/{1}", spaceId, msgId)).put("author", author)
+                    .put("time", time.toString()).put("message", message).toString();
         }
-    }
-
-    public JSONObject addMember(Request request, Response response) throws InsufficientPermissionsException {
-        var json = new JSONObject(request.body());
-        var spaceId = Long.parseLong(request.params(":spaceId"));
-        var userToAdd = json.getString("username");
-        var read = json.getBoolean("read");
-        var write = json.getBoolean("write");
-        var delete = json.getBoolean("delete");
-        var permsWanted = Permission.permsFrom(read, write, delete);
-
-        var username = castNonNull(request.attribute("subject"), "nonnull since authenticated");
-        var permsHad = database.findOptional(Permission::permsFromRow,
-                "SELECT read, write, delete FROM permissions WHERE space_id = ? AND user_id = ?;", spaceId, username)
-                .orElse(EnumSet.noneOf(Permission.class));
-        if (!permsHad.containsAll(permsWanted)) {
-            throw new InsufficientPermissionsException();
-        }
-
-        database.updateUnique("INSERT INTO permissions(space_id, user_id, read, write, delete) VALUES (?, ?, ?, ?, ?);",
-                spaceId, userToAdd, read, write, delete);
-
-        response.status(200);
-        return new JSONObject().put("username", userToAdd).put("read", read).put("write", write).put("delete", delete);
-    }
-
-    public class InsufficientPermissionsException extends Exception {
     }
 }

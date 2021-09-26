@@ -1,0 +1,7 @@
+package org.dalesbred;
+
+import org.checkerframework.checker.nullness.qual.Nullable;
+
+public final class Database {
+    public void updateUnique(@NotNull @Language("SQL") String sql, @Nullable Object... args);
+}

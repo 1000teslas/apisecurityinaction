@@ -56,14 +56,12 @@ public class Main {
         dataSource = JdbcConnectionPool.create("jdbc:h2:mem:natter", "natter_api_user", "password");
 
         database = Database.forDataSource(dataSource);
-
         var capStore = HmacTokenStore.wrap(new CapabilityStore(database), macKey);
         var capController = new CapabilityController(capStore);
         var spaceController = new SpaceController(database, capController);
         var userController = new UserController(database);
         var auditController = new AuditController(database);
         var moderatorController = new ModeratorController(database);
-
         var authnTokenStore = HmacTokenStore.wrap(new AuthnTokenStore(database), macKey);
         var tokenController = new TokenController(authnTokenStore);
 
@@ -105,20 +103,21 @@ public class Main {
         before("/spaces", userController::requireAuthentication);
         post("/spaces", spaceController::createSpace);
 
-        before("/spaces/:spaceId/messages", userController.requirePermission("POST", EnumSet.of(Permission.Write)));
+        before("/spaces/:spaceId/messages", (request, response) -> {
+            if (request.requestMethod().equalsIgnoreCase("POST")) {
+                userController.requireAuthentication(request, response);
+            }
+        });
+        before("/spaces/:spaceId/messages", capController::lookupPermissions);
+        before("/spaces/:spaceId/messages", capController.requirePermission("POST", EnumSet.of(Permission.Write)));
         post("/spaces/:spaceId/messages", spaceController::postMessage);
-
-        before("/spaces/:spaceId/messages/*", userController.requirePermission("GET", EnumSet.of(Permission.Read)));
-        get("/spaces/:spaceId/messages/:msgId", spaceController::readMessage);
-
-        before("/spaces/:spaceId/messages", userController.requirePermission("GET", EnumSet.of(Permission.Read)));
+        before("/spaces/:spaceId/messages", capController.requirePermission("GET", EnumSet.of(Permission.Read)));
         get("/spaces/:spaceId/messages", spaceController::findMessages);
 
-        before("/spaces/:spaceId/members", userController::requireAuthentication);
-        post("/spaces/:spaceId/members", spaceController::addMember);
-
-        before("/spaces/:spaceId/messages/*",
-                userController.requirePermission("DELETE", EnumSet.of(Permission.Delete)));
+        before("/spaces/:spaceId/messages/*", capController::lookupPermissions);
+        before("/spaces/:spaceId/messages/*", capController.requirePermission("GET", EnumSet.of(Permission.Read)));
+        get("/spaces/:spaceId/messages/:msgId", spaceController::readMessage);
+        before("/spaces/:spaceId/messages/*", capController.requirePermission("DELETE", EnumSet.of(Permission.Delete)));
         delete("/spaces/:spaceId/messages/:msgId", moderatorController::deletePost);
 
         get("/logs", auditController::readAuditLog);
@@ -130,11 +129,6 @@ public class Main {
         exception(IllegalArgumentException.class, Main::badRequest);
         exception(JSONException.class, Main::badRequest);
         exception(EmptyResultException.class, (e, request, response) -> response.status(404));
-        exception(SpaceController.InsufficientPermissionsException.class, (e, request, response) -> {
-            response.status(403);
-            response.body(new JSONObject()
-                    .put("error", "attempted to create user with more permissions than current user").toString());
-        });
     }
 
     private static void createTables(Database database) throws URISyntaxException, IOException {

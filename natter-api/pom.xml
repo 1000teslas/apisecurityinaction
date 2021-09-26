@@ -16,7 +16,7 @@
     <maven.compiler.source>16</maven.compiler.source>
     <maven.compiler.target>16</maven.compiler.target>
     <exec.mainClass>
-      com.manning.apisecurityinaction.Main     
+      com.manning.apisecurityinaction.Main
     </exec.mainClass>
   </properties>
 
@@ -161,6 +161,10 @@
                 <!-- Add all the checkers you want to enable here -->
                 <annotationProcessor>org.checkerframework.checker.nullness.NullnessChecker</annotationProcessor>
                 <annotationProcessor>org.checkerframework.checker.regex.RegexChecker</annotationProcessor>
+                <annotationProcessor>org.checkerframework.checker.formatter.FormatterChecker</annotationProcessor>
+                <annotationProcessor>org.checkerframework.checker.optional.OptionalChecker</annotationProcessor>
+                <annotationProcessor>org.checkerframework.checker.i18nformatter.I18nFormatterChecker</annotationProcessor>
+                <annotationProcessor>org.checkerframework.checker.propkey.PropertyKeyChecker</annotationProcessor>
               </annotationProcessors>
               <compilerArgs>
                 <!-- <arg>-Awarns</arg> -->
