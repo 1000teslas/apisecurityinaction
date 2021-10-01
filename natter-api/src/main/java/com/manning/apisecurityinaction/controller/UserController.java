@@ -13,13 +13,8 @@ import spark.Response;
 
 import static spark.Spark.halt;
 
-public class UserController {
+public record UserController(Database database) {
     private static final String USERNAME_PATTERN = "[a-zA-Z][a-zA-Z0-9]{1,29}";
-    private final Database database;
-
-    public UserController(Database database) {
-        this.database = database;
-    }
 
     public JSONObject registerUser(Request request, Response response) {
         var json = new JSONObject(request.body());

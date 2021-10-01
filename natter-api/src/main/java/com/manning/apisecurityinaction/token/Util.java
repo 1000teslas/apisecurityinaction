@@ -9,6 +9,7 @@ public class Util {
         var hash = sha256(tokenId);
         return Base64Url.encode(hash);
     }
+
     static byte[] sha256(String tokenId) {
         try {
             var sha256 = MessageDigest.getInstance("SHA-256");

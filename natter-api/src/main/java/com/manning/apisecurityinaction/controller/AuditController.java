@@ -15,13 +15,7 @@ import spark.Response;
 
 import static org.checkerframework.checker.nullness.util.NullnessUtil.castNonNull;
 
-public class AuditController {
-    private final Database database;
-
-    public AuditController(Database database) {
-        this.database = database;
-    }
-
+public record AuditController(Database database) {
     public void auditRequestStart(Request request, Response response) {
         database.withVoidTransaction(tx -> {
             var auditId = database.findUniqueLong("SELECT NEXT VALUE FOR audit_id_seq");

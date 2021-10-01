@@ -16,11 +16,11 @@ import static org.checkerframework.checker.nullness.util.NullnessUtil.castNonNul
 
 public final class AuthnTokenStore implements ConfidentialTokenStore<AuthnToken> {
     private final Database database;
-    private final SecureRandom secureRandom;
+    private final SecureRandom rng;
 
-    public AuthnTokenStore(Database database) {
+    public AuthnTokenStore(Database database, SecureRandom rng) {
         this.database = database;
-        this.secureRandom = new SecureRandom();
+        this.rng = rng;
         // this can only be guaranteed initialized if there are no subclasses
         Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(this::deleteExpiredTokens, 10, 10,
                 TimeUnit.MINUTES);
@@ -59,7 +59,7 @@ public final class AuthnTokenStore implements ConfidentialTokenStore<AuthnToken>
 
     private String randomId() {
         var bytes = new byte[20];
-        secureRandom.nextBytes(bytes);
+        rng.nextBytes(bytes);
         return Base64Url.encode(bytes);
     }
 

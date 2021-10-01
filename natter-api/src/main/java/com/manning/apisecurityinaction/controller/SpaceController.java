@@ -3,6 +3,7 @@ package com.manning.apisecurityinaction.controller;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.EnumSet;
 import java.util.stream.Collectors;
 
 import org.dalesbred.Database;
@@ -15,15 +16,7 @@ import spark.Response;
 import static java.text.MessageFormat.format;
 import static org.checkerframework.checker.nullness.util.NullnessUtil.castNonNull;
 
-public class SpaceController {
-    private final Database database;
-    private final CapabilityController capabilityController;
-
-    public SpaceController(Database database, CapabilityController capabilityController) {
-        this.database = database;
-        this.capabilityController = capabilityController;
-    }
-
+public record SpaceController(Database database, CapabilityController capabilityController) {
     public JSONObject createSpace(Request request, Response response) {
         var json = new JSONObject(request.body());
         var spaceName = json.getString("name");
@@ -39,13 +32,14 @@ public class SpaceController {
             database.updateUnique("INSERT INTO spaces(space_id, name, owner) VALUES(?, ?, ?);", spaceId, spaceName,
                     owner);
 
-            var uri = capabilityController.createUri(request, "/spaces/" + spaceId, "rwd", null);
-            var messagesUri = capabilityController.createUri(request, format("/spaces/{0}/messages", spaceId), "rwd",
-                    null);
-            var messagesRwUri = capabilityController.createUri(request, format("/spaces/{0}/messages", spaceId), "rw",
-                    null);
-            var messagesRoUri = capabilityController.createUri(request, format("/spaces/{0}/messages", spaceId), "r",
-                    null);
+            var uri = capabilityController.createUri(request, "/spaces/" + spaceId,
+                    EnumSet.of(Permission.Read, Permission.Write, Permission.Delete), null);
+            var messagesUri = capabilityController.createUri(request, format("/spaces/{0}/messages", spaceId),
+                    EnumSet.of(Permission.Read, Permission.Write, Permission.Delete), null);
+            var messagesRwUri = capabilityController.createUri(request, format("/spaces/{0}/messages", spaceId),
+                    EnumSet.of(Permission.Read, Permission.Write), null);
+            var messagesRoUri = capabilityController.createUri(request, format("/spaces/{0}/messages", spaceId),
+                    EnumSet.of(Permission.Read), null);
 
             response.status(201);
             response.header("Location", uri.toASCIIString());
@@ -71,10 +65,10 @@ public class SpaceController {
                     "INSERT INTO messages(space_id, msg_id, author, msg_time, msg_text) VALUES(?, ?, ?, current_timestamp, ?);",
                     spaceId, msgId, author, message);
 
-            var uri = capabilityController.createUri(request, format("/spaces/{0}/messages/{1}", spaceId, msgId), "rwd",
-                    Duration.ofMinutes(5));
-            var roUri = capabilityController.createUri(request, format("/spaces/{0}/messages/{1}", spaceId, msgId), "r",
-                    null);
+            var uri = capabilityController.createUri(request, format("/spaces/{0}/messages/{1}", spaceId, msgId),
+                    EnumSet.of(Permission.Read, Permission.Write, Permission.Delete), Duration.ofMinutes(5));
+            var roUri = capabilityController.createUri(request, format("/spaces/{0}/messages/{1}", spaceId, msgId),
+                    EnumSet.of(Permission.Read), null);
 
             response.status(201);
             response.header("Location", uri.toASCIIString());
@@ -104,8 +98,8 @@ public class SpaceController {
 
         var messages = database.findAll(Long.class, "SELECT msg_id FROM messages WHERE space_id = ? AND msg_time >= ?;",
                 spaceId, since);
-        var perms = castNonNull(request.<String>attribute("perms"), "nonnull since checked by requirePermission")
-                .replace("w", "");
+        EnumSet<Permission> perms = castNonNull(request.attribute("perms"),
+                "nonnull since checked in requirePermission");
 
         response.status(200);
         return new JSONArray(messages.stream().map(msgId -> {
@@ -114,21 +108,7 @@ public class SpaceController {
         }).collect(Collectors.toList()));
     }
 
-    public static class Message {
-        private final long spaceId;
-        private final long msgId;
-        private final String author;
-        private final Instant time;
-        private final String message;
-
-        public Message(long spaceId, long msgId, String author, Instant time, String message) {
-            this.spaceId = spaceId;
-            this.msgId = msgId;
-            this.author = author;
-            this.time = time;
-            this.message = message;
-        }
-
+    public static record Message(long spaceId, long msgId, String author, Instant time, String message) {
         @Override
         public String toString() {
             return new JSONObject().put("uri", format("/spaces/{0}/messages/{1}", spaceId, msgId)).put("author", author)

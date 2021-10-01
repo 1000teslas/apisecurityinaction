@@ -10,5 +10,4 @@ public interface TokenStore<T> {
     Optional<T> read(Request request, String tokenId);
 
     void revoke(Request request, String tokenId);
-
 }

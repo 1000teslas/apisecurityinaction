@@ -17,19 +17,10 @@ import spark.Response;
 
 import static spark.Spark.halt;
 import static java.text.MessageFormat.format;
-import static org.checkerframework.checker.nullness.util.NullnessUtil.castNonNull;
 
-public class CapabilityController {
-    private final SecureTokenStore<Capability> tokenStore;
-
-    public CapabilityController(SecureTokenStore<Capability> tokenStore) {
-        this.tokenStore = tokenStore;
-    }
-
-    public URI createUri(Request request, String path, String perms, @Nullable Duration expiryDuration) {
-        var token = new Capability(expiryDuration == null ? null : Instant.now().plus(expiryDuration));
-        token.attributes.put("path", path);
-        token.attributes.put("perms", perms);
+public record CapabilityController(SecureTokenStore<Capability> tokenStore) {
+    public URI createUri(Request request, String path, EnumSet<Permission> perms, @Nullable Duration expiryDuration) {
+        var token = new Capability(expiryDuration == null ? null : Instant.now().plus(expiryDuration), path, perms);
 
         var tokenId = tokenStore.create(request, token);
 
@@ -43,10 +34,8 @@ public class CapabilityController {
             return;
         }
         tokenStore.read(request, tokenId).ifPresent(token -> {
-            var tokenPath = token.attributes.get("path");
-            if (Objects.equals(tokenPath, request.pathInfo())) {
-                request.attribute("perms",
-                        castNonNull(token.attributes.get("perms"), "nonnull since token must have attribute perms"));
+            if (Objects.equals(token.path(), request.pathInfo())) {
+                request.attribute("perms", token.perms());
             }
         });
     }
@@ -56,14 +45,9 @@ public class CapabilityController {
             if (!method.equalsIgnoreCase(request.requestMethod())) {
                 return;
             }
-            String perms = request.attribute("perms");
-            if (perms == null) {
+            EnumSet<Permission> permsHad = request.attribute("perms");
+            if (permsHad == null || !permsHad.containsAll(permsNeeded)) {
                 halt(403);
-            } else {
-                var permsHad = Permission.permsFromString(perms);
-                if (permsHad == null || !permsHad.containsAll(permsNeeded)) {
-                    halt(403);
-                }
             }
         };
     }

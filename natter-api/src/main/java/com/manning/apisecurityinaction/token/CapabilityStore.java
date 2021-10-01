@@ -7,8 +7,9 @@ import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import com.manning.apisecurityinaction.controller.Permission;
+
 import org.dalesbred.Database;
-import org.json.JSONObject;
 
 import spark.Request;
 
@@ -16,11 +17,11 @@ import static org.checkerframework.checker.nullness.util.NullnessUtil.castNonNul
 
 public final class CapabilityStore implements ConfidentialTokenStore<Capability> {
     private final Database database;
-    private final SecureRandom secureRandom;
+    private final SecureRandom rng;
 
-    public CapabilityStore(Database database) {
+    public CapabilityStore(Database database, SecureRandom rng) {
         this.database = database;
-        this.secureRandom = new SecureRandom();
+        this.rng = rng;
         // this can only be guaranteed initialized if there are no subclasses
         Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(this::deleteExpiredTokens, 10, 10,
                 TimeUnit.MINUTES);
@@ -28,29 +29,27 @@ public final class CapabilityStore implements ConfidentialTokenStore<Capability>
 
     public String create(Request request, Capability token) {
         var tokenId = randomId();
-        var attrs = new JSONObject(token.attributes).toString();
 
-        database.updateUnique("INSERT INTO caps(cap_id, expiry, attributes) VALUES(?, ?, ?);", Util.hash(tokenId),
-                token.expiry, attrs);
+        database.updateUnique("INSERT INTO caps(cap_id, expiry, path, r, w, d) VALUES(?, ?, ?, ?, ?, ?);",
+                Util.hash(tokenId), token.expiry(), token.path(), token.perms().contains(Permission.Read),
+                token.perms().contains(Permission.Write), token.perms().contains(Permission.Delete));
 
         return tokenId;
     }
 
     public Optional<Capability> read(Request request, String tokenId) {
-        return database.findOptional(this::readToken, "SELECT expiry, attributes FROM caps WHERE cap_id = ?;",
+        return database.findOptional(this::readToken, "SELECT expiry, path, r, w, d FROM caps WHERE cap_id = ?;",
                 Util.hash(tokenId));
     }
 
     private Capability readToken(ResultSet resultSet) throws SQLException {
         var ts = resultSet.getTimestamp("expiry");
         var expiry = ts == null ? null : ts.toInstant();
-        var json = new JSONObject(castNonNull(resultSet.getString("attributes"), "nonnull by db constraint"));
+        var path = castNonNull(resultSet.getString("path"), "nonnull by db constraint");
+        var perms = Permission.permsFrom(resultSet.getBoolean("r"), resultSet.getBoolean("w"),
+                resultSet.getBoolean("d"));
 
-        var token = new Capability(expiry);
-        for (var key : json.keySet()) {
-            token.attributes.put(key, json.getString(key));
-        }
-        return token;
+        return new Capability(expiry, path, perms);
     }
 
     public void revoke(Request request, String tokenId) {
@@ -59,7 +58,7 @@ public final class CapabilityStore implements ConfidentialTokenStore<Capability>
 
     private String randomId() {
         var bytes = new byte[20];
-        secureRandom.nextBytes(bytes);
+        rng.nextBytes(bytes);
         return Base64Url.encode(bytes);
     }
 

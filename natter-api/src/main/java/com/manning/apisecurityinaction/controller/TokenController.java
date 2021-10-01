@@ -13,13 +13,7 @@ import java.time.temporal.ChronoUnit;
 import static org.checkerframework.checker.nullness.util.NullnessUtil.castNonNull;
 import static spark.Spark.halt;
 
-public class TokenController {
-    private final SecureTokenStore<AuthnToken> tokenStore;
-
-    public TokenController(SecureTokenStore<AuthnToken> tokenStore) {
-        this.tokenStore = tokenStore;
-    }
-
+public record TokenController(SecureTokenStore<AuthnToken> tokenStore) {
     public JSONObject login(Request request, Response response) {
         String subject = castNonNull(request.attribute("subject"), "nonnull since authenticated");
         var expiry = Instant.now().plus(10, ChronoUnit.MINUTES);

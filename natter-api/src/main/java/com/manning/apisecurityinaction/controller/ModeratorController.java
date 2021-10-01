@@ -6,13 +6,7 @@ import org.json.JSONObject;
 import spark.Request;
 import spark.Response;
 
-public class ModeratorController {
-    private final Database database;
-
-    public ModeratorController(Database database) {
-        this.database = database;
-    }
-
+public record ModeratorController(Database database) {
     public JSONObject deletePost(Request request, Response response) {
         var spaceId = Long.parseLong(request.params(":spaceId"));
         var msgId = Long.parseLong(request.params(":msgId"));

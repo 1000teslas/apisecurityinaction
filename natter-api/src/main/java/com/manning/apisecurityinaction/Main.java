@@ -8,6 +8,7 @@ import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.util.EnumSet;
@@ -56,13 +57,14 @@ public class Main {
         dataSource = JdbcConnectionPool.create("jdbc:h2:mem:natter", "natter_api_user", "password");
 
         database = Database.forDataSource(dataSource);
-        var capStore = HmacTokenStore.wrap(new CapabilityStore(database), macKey);
+        var rng = new SecureRandom();
+        var capStore = HmacTokenStore.wrap(new CapabilityStore(database, rng), macKey);
         var capController = new CapabilityController(capStore);
         var spaceController = new SpaceController(database, capController);
         var userController = new UserController(database);
         var auditController = new AuditController(database);
         var moderatorController = new ModeratorController(database);
-        var authnTokenStore = HmacTokenStore.wrap(new AuthnTokenStore(database), macKey);
+        var authnTokenStore = HmacTokenStore.wrap(new AuthnTokenStore(database, rng), macKey);
         var tokenController = new TokenController(authnTokenStore);
 
         var rateLimiter = RateLimiter.create(2.0d);
