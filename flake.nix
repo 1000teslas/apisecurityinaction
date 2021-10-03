@@ -7,7 +7,16 @@
         pkgs = import nixpkgs { inherit system; };
       in
         {
-          devShell = with pkgs; mkShell { buildInputs = [ bashInteractive openjdk_headless maven mkcert protobuf ]; };
+          devShell = with pkgs; mkShell {
+            buildInputs = [
+              bashInteractive
+              openjdk_headless
+              maven
+              mkcert
+              protobuf
+              heroku
+            ];
+          };
         }
   );
 }
