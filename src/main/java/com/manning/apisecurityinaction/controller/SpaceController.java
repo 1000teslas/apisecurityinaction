@@ -1,6 +1,5 @@
 package com.manning.apisecurityinaction.controller;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.EnumSet;
@@ -33,13 +32,13 @@ public record SpaceController(Database database, CapabilityController capability
                     owner);
 
             var uri = capabilityController.createUri(request, "/spaces/" + spaceId,
-                    EnumSet.of(Permission.Read, Permission.Write, Permission.Delete), null);
+                    EnumSet.of(Permission.Read, Permission.Write, Permission.Delete));
             var messagesUri = capabilityController.createUri(request, format("/spaces/{0}/messages", spaceId),
-                    EnumSet.of(Permission.Read, Permission.Write, Permission.Delete), null);
+                    EnumSet.of(Permission.Read, Permission.Write, Permission.Delete));
             var messagesRwUri = capabilityController.createUri(request, format("/spaces/{0}/messages", spaceId),
-                    EnumSet.of(Permission.Read, Permission.Write), null);
+                    EnumSet.of(Permission.Read, Permission.Write));
             var messagesRoUri = capabilityController.createUri(request, format("/spaces/{0}/messages", spaceId),
-                    EnumSet.of(Permission.Read), null);
+                    EnumSet.of(Permission.Read));
 
             response.status(201);
             response.header("Location", uri.toASCIIString());
@@ -66,9 +65,9 @@ public record SpaceController(Database database, CapabilityController capability
                     spaceId, msgId, author, message);
 
             var uri = capabilityController.createUri(request, format("/spaces/{0}/messages/{1}", spaceId, msgId),
-                    EnumSet.of(Permission.Read, Permission.Write, Permission.Delete), Duration.ofMinutes(5));
+                    EnumSet.of(Permission.Read, Permission.Write, Permission.Delete));
             var roUri = capabilityController.createUri(request, format("/spaces/{0}/messages/{1}", spaceId, msgId),
-                    EnumSet.of(Permission.Read), null);
+                    EnumSet.of(Permission.Read));
 
             response.status(201);
             response.header("Location", uri.toASCIIString());
@@ -104,7 +103,7 @@ public record SpaceController(Database database, CapabilityController capability
         response.status(200);
         return new JSONArray(messages.stream().map(msgId -> {
             var path = format("/spaces/{0}/messages/{1}", spaceId, msgId);
-            return capabilityController.createUri(request, path, perms, Duration.ofMinutes(10));
+            return capabilityController.createUri(request, path, perms);
         }).collect(Collectors.toList()));
     }
 

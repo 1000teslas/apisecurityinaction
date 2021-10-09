@@ -48,11 +48,9 @@ CREATE INDEX expired_token_idx ON tokens(expiry);
 
 CREATE TABLE caps(
     cap_id VARCHAR(100) PRIMARY KEY,
-    expiry TIMESTAMP,
     path VARCHAR(100) NOT NULL,
     r BOOLEAN NOT NULL,
     w BOOLEAN NOT NULL,
     d BOOLEAN NOT NULL
 );
 GRANT SELECT, INSERT, DELETE ON caps TO natter_api_user;
-CREATE INDEX expired_cap_idx ON caps(expiry);

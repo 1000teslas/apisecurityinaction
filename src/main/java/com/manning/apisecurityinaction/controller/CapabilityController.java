@@ -1,15 +1,11 @@
 package com.manning.apisecurityinaction.controller;
 
 import java.net.URI;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.Objects;
 import java.util.EnumSet;
 
 import com.manning.apisecurityinaction.token.Capability;
 import com.manning.apisecurityinaction.token.SecureTokenStore;
-
-import org.checkerframework.checker.nullness.qual.Nullable;
 
 import spark.Filter;
 import spark.Request;
@@ -19,8 +15,8 @@ import static spark.Spark.halt;
 import static java.text.MessageFormat.format;
 
 public record CapabilityController(SecureTokenStore<Capability> tokenStore) {
-    public URI createUri(Request request, String path, EnumSet<Permission> perms, @Nullable Duration expiryDuration) {
-        var token = new Capability(expiryDuration == null ? null : Instant.now().plus(expiryDuration), path, perms);
+    public URI createUri(Request request, String path, EnumSet<Permission> perms) {
+        var token = new Capability(path, perms);
 
         var tokenId = tokenStore.create(request, token);
 
