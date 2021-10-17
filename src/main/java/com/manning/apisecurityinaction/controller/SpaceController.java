@@ -16,6 +16,7 @@ import static java.text.MessageFormat.format;
 import static org.checkerframework.checker.nullness.util.NullnessUtil.castNonNull;
 
 public record SpaceController(Database database, CapabilityController capabilityController) {
+
     public JSONObject createSpace(Request request, Response response) {
         var json = new JSONObject(request.body());
         var spaceName = json.getString("name");
