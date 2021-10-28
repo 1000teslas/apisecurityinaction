@@ -13,8 +13,8 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.source>16</maven.compiler.source>
-    <maven.compiler.target>16</maven.compiler.target>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
     <exec.mainClass>
       com.manning.apisecurityinaction.Main
     </exec.mainClass>
@@ -34,22 +34,22 @@
     <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
-      <version>30.1.1-jre</version>
+      <version>31.0.1-jre</version>
     </dependency>
     <dependency>
       <groupId>com.googlecode.owasp-java-html-sanitizer</groupId>
       <artifactId>owasp-java-html-sanitizer</artifactId>
-      <version>20200713.1</version>
+      <version>20211018.2</version>
     </dependency>
     <dependency>
       <groupId>org.checkerframework</groupId>
       <artifactId>checker-qual</artifactId>
-      <version>3.18.0</version>
+      <version>3.18.1</version>
     </dependency>
     <dependency>
       <groupId>org.checkerframework</groupId>
       <artifactId>checker-util</artifactId>
-      <version>3.18.0</version>
+      <version>3.18.1</version>
     </dependency>
     <dependency>
       <groupId>com.h2database</groupId>
@@ -79,6 +79,22 @@
   </dependencies>
 
   <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.0.1</version>
+        <executions>
+          <execution>
+            <id>copy-dependencies</id>
+            <phase>package</phase>
+            <goals>
+              <goal>copy-dependencies</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
     <pluginManagement>
       <!-- lock down plugins versions to avoid using Maven defaults (may be moved to parent pom) -->
       <plugins>
@@ -197,7 +213,7 @@
         <dependency>
           <groupId>org.checkerframework</groupId>
           <artifactId>checker</artifactId>
-          <version>3.18.0</version>
+          <version>3.18.1</version>
         </dependency>
       </dependencies>
     </profile>

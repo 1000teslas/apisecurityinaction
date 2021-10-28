@@ -41,13 +41,15 @@ import static org.checkerframework.checker.nullness.util.NullnessUtil.castNonNul
 public class Main {
     public static void main(String[] args) throws URISyntaxException, IOException, KeyStoreException,
             NoSuchAlgorithmException, CertificateException, UnrecoverableKeyException {
+        // TODO: https on heroku
         staticFiles.location("/public");
-        // trust store is optional
-        secure("localhost.p12", "changeit", null, null);
+        port(Integer.parseInt(castNonNull(System.getenv("PORT"), "heroku sets PORT")));
 
-        var keyPassword = System.getProperty("keystore.password", "changeit").toCharArray();
+        var keyPassword = castNonNull(System.getenv("KEYSTORE_PASSWORD"), "KEYSTORE_PASSWORD is set").toCharArray();
         var keyStore = KeyStore.getInstance("PKCS12");
-        keyStore.load(new FileInputStream("keystore.p12"), keyPassword);
+        try (var stream = new FileInputStream("keystore.p12")) {
+            keyStore.load(stream, keyPassword);
+        }
         var macKey = castNonNull(keyStore.getKey("hmac-key", keyPassword),
                 "nonnull since alias hmac-key is associated with mac key in keystore");
 
@@ -89,7 +91,6 @@ public class Main {
             response.header("Cache-Control", "no-store");
             response.header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; sandbox");
             response.header("Server", "");
-            // response.header("Strict-Transport-Security", "max-age=31536000");
         });
 
         before(userController::authenticate);
@@ -134,8 +135,8 @@ public class Main {
     }
 
     private static void createTables(Database database) throws URISyntaxException, IOException {
-        var path = Paths.get(
-                castNonNull(Main.class.getResource("/schema.sql"), "resource \"/schema.sql\" does not exist").toURI());
+        var path = Paths
+                .get(castNonNull(Main.class.getResource("/schema.sql"), "resource \"/schema.sql\" exists").toURI());
         database.update(Files.readString(path));
     }
 

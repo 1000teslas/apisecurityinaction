@@ -53,3 +53,4 @@ local.properties
 
 .direnv
 .vscode
+.env

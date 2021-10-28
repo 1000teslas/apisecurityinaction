@@ -10,7 +10,7 @@
           devShell = with pkgs; mkShell {
             buildInputs = [
               bashInteractive
-              openjdk_headless
+              jdk17_headless
               maven
               mkcert
               protobuf
